@@ -1,0 +1,83 @@
+{
+  "phase_number": null,
+  "phase_name": "",
+  "timestamp": "",
+  "duration_seconds": 0,
+  "agent_info": {
+    "agent_type": "",
+    "call_number": 0
+  },
+  "output": {},
+  "_template_info": {
+    "description": "Phase 输出文件模板 - 每个 Phase 必须生成对应的 JSON 输出",
+    "required_fields": [
+      "phase_number",
+      "phase_name",
+      "timestamp",
+      "duration_seconds",
+      "output"
+    ],
+    "validation_script": "scripts/validate-phase-output.sh",
+    "examples": {
+      "phase_0": {
+        "output": {
+          "project_info": {},
+          "rules_info": {}
+        }
+      },
+      "phase_1": {
+        "output": {
+          "core_requirements": [],
+          "non_functional_requirements": {},
+          "boundary_cases": [],
+          "success_criteria": []
+        }
+      },
+      "phase_2": {
+        "output": {
+          "options": [],
+          "selected_option": ""
+        }
+      },
+      "phase_3": {
+        "output": {
+          "files_created": [],
+          "files_modified": [],
+          "rules_applied": [],
+          "implementation_summary": ""
+        }
+      },
+      "phase_4": {
+        "output": {
+          "test_files": [],
+          "coverage_estimate": 0
+        }
+      },
+      "phase_5": {
+        "output": {
+          "status": "pass/fail",
+          "total_tests": 0,
+          "passed_tests": 0,
+          "failed_tests": 0,
+          "coverage_percent": 0,
+          "failures": []
+        }
+      },
+      "phase_6": {
+        "output": {
+          "fixer_result": {},
+          "runner_result": {}
+        }
+      },
+      "phase_7": {
+        "output": {
+          "status": "success",
+          "summary": {},
+          "files_created": [],
+          "test_results": {},
+          "agent_statistics": {}
+        }
+      }
+    }
+  }
+}
