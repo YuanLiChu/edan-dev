@@ -1,0 +1,20 @@
+# edan-dev: 外挂文件夹（可能包含敏感设计图）
+attachments/
+.attachments/
+
+# edan-dev: 工作流输出
+.dev-flow/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 构建产物
+build/
+dist/
+target/
+*.exe
+*.dll
+*.so
+*.a

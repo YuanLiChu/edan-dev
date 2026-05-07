@@ -1,0 +1,87 @@
+{
+  "workflow_id": "autoflow-{timestamp}",
+  "status": "initialized",
+  "current_phase": 0,
+  "max_retries": 5,
+
+  "project_info": {
+    "project_type": "",
+    "language": "",
+    "architecture": "",
+    "framework": "",
+    "build_system": "",
+    "test_framework": "",
+    "key_directories": {
+      "source": "",
+      "test": "",
+      "config": ""
+    }
+  },
+
+  "rules_info": {
+    "rules_root": "",
+    "rules_type": "NOT_FOUND",
+    "plugin_version": "",
+    "rules_paths": {
+      "common": [],
+      "language_specific": []
+    }
+  },
+
+  "phase_status": [],
+  "phase_status_template": {
+    "phase_number": null,
+    "phase_name": "",
+    "status": "pending",
+    "start_time": null,
+    "end_time": null,
+    "output_files": [],
+    "execution_notes": ""
+  },
+
+  "agent_calls": {
+    "architect": 0,
+    "coder": 0,
+    "tester": 0,
+    "runner": 0,
+    "fixer": 0
+  },
+
+  "created_at": "yyyy-mm-ddThh:mm:ssZ",
+  "updated_at": "yyyy-mm-ddThh:mm:ssZ",
+
+  "_validation": {
+    "scripts": {
+      "state_format": "scripts/validate-state-format.sh",
+      "phase_output": "scripts/validate-phase-output.sh"
+    },
+    "required_phase_fields": [
+      "phase_number",
+      "phase_name",
+      "status",
+      "start_time",
+      "end_time",
+      "output_files",
+      "execution_notes"
+    ]
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⚠️ 强制验证机制
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// phase_status 数组元素结构说明：
+// 每个 phase_status 元素必须包含以下字段：
+// {
+//   "phase_number": 0,
+//   "phase_name": "初始化",
+//   "status": "pending|in_progress|completed",
+//   "start_time": "yyyy-mm-ddThh:mm:ssZ",
+//   "end_time": "yyyy-mm-ddThh:mm:ssZ | null",
+//   "output_files": ["outputs/phase-0-initialization.json"],  ← 必需字段
+//   "execution_notes": ""
+// }
+//
+// ⚠️ 主 Agent 必须在每次更新 phase_status 后调用验证脚本：
+// Bash(f"bash scripts/validate-state-format.sh {workflow_id}")
