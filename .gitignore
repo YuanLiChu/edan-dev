@@ -5,6 +5,9 @@ attachments/
 # edan-dev: 工作流输出
 .dev-flow/
 
+# edan-dev: 视觉伴侣会话数据
+.edan-dev/brainstorm/
+
 # IDE
 .idea/
 .vscode/

@@ -236,6 +236,7 @@ while loop_count < max_retries:
 ### 5a. 选择候选方案
 
 ```python
+# 方式一：终端文本选择（默认）
 AskUserQuestion(questions=[{
     "question": "请选择基础方案（后续可细化）",
     "header":   "方案选择",
@@ -246,6 +247,82 @@ AskUserQuestion(questions=[{
         {"label": "都不满意，请调整",         "description": "告诉我调整方向"}
     ]
 }])
+```
+
+#### 5a-viz. 视觉伴侣增强（可选）
+
+若方案涉及架构图、UI 布局等适合可视化的内容，**征求用户同意后**启动 visual-brainstorming：
+
+```python
+# 1. 征求同意（独立消息，不与其他内容合并）
+AskUserQuestion(questions=[{
+    "question": "候选方案包含架构图和组件关系，我可以在浏览器中展示可视化对比，支持点击选择。是否启用视觉伴侣？",
+    "header":   "视觉伴侣",
+    "options": [
+        {"label": "✅ 启用", "description": "打开浏览器查看可视化对比（建议分屏或第二显示器）"},
+        {"label": "❌ 不用", "description": "继续在终端中确认"}
+    ]
+}])
+
+# 2. 若用户同意，启动视觉伴侣服务器
+if use_visual_companion:
+    # 启动服务器
+    server_info = Bash("powershell -File skills/visual-brainstorming/scripts/start-server.ps1 -ProjectDir .")
+    screen_dir = server_info["screen_dir"]
+    state_dir = server_info["state_dir"]
+    url = server_info["url"]
+
+    # 3. 生成可视化对比 HTML
+    html_content = f"""
+    <h2>候选方案架构对比</h2>
+    <p class="subtitle">点击选择你认为更合理的架构，然后回到终端确认</p>
+
+    <div class="options">
+      <div class="option" data-choice="a" onclick="toggleSelect(this)">
+        <div class="letter">A</div>
+        <div class="content">
+          <h3>{option_a_name}</h3>
+          <p>{option_a_summary}</p>
+          <pre class="mermaid">{option_a_mermaid}</pre>
+        </div>
+      </div>
+      <div class="option" data-choice="b" onclick="toggleSelect(this)">
+        <div class="letter">B</div>
+        <div class="content">
+          <h3>{option_b_name}</h3>
+          <p>{option_b_summary}</p>
+          <pre class="mermaid">{option_b_mermaid}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><h4>方案A 优势</h4><ul>{option_a_pros}</ul></div>
+      <div class="cons"><h4>方案B 优势</h4><ul>{option_b_pros}</ul></div>
+    </div>
+    """
+    Write(f"{screen_dir}/solution-comparison.html", content=html_content)
+
+    # 4. 提示用户查看
+    AskUserQuestion(questions=[{
+        "question": f"可视化对比已生成，请打开浏览器访问 {url} 查看架构对比，点击选择后回到这里确认。",
+        "header":   "方案可视化",
+        "options": [
+            {"label": "已查看并选择", "description": "回到终端继续"},
+            {"label": "需要调整", "description": "告诉我修改方向"}
+        ]
+    }])
+
+    # 5. 读取浏览器事件（如果有）
+    events = Read(f"{state_dir}/events") if file_exists(f"{state_dir}/events") else None
+    # 合并浏览器选择和终端输入做最终决策
+```
+
+> 详见：`skills/visual-brainstorming/SKILL.md` 和 `skills/visual-brainstorming/visual-companion.md`
+
+---
+
+### 5b. 确认组件边界
 ```
 
 ### 5b. 确认组件边界
@@ -395,3 +472,5 @@ phase_2_output = {
 - **docs/external-context-guide.md** — Figma/doc/pdf 解析指南
 - **docs/workflow-phases.md** — Phase 1/2 详细流程
 - **docs/agent-guide.md** — Architect Agent 调用模板
+- **skills/visual-brainstorming/SKILL.md** — 视觉伴侣 Skill（浏览器可视化辅助）
+- **skills/visual-brainstorming/visual-companion.md** — 视觉伴侣详细使用指南
