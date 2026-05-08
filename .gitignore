@@ -1,5 +1,27 @@
-# macOS 系统文件
+# edan-dev: 外挂文件夹（可能包含敏感设计图）
+attachments/
+.attachments/
+
+# edan-dev: 工作流输出
+.dev-flow/
+
+# edan-dev: 视觉伴侣会话数据
+.edan-dev/brainstorm/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 构建产物
+build/
+dist/
+target/
+*.exe
+*.dll
+*.so
+*.a
+
+# macOS
 .DS_Store
 
-# Claude 本地设置（可能包含敏感信息）
-.claude/settings.local.json

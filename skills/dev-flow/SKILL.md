@@ -1,56 +1,51 @@
 ---
 name: dev-flow
-description: "完整开发流水线 —— 从架构检测到测试修复的全流程自动化。TRIGGER when: 用户提到 '开发'/'实现'/'添加' + '功能'/'模块'/'系统'，且需要 '完整流程'/'测试'/'设计'。DO NOT TRIGGER when: '简单'/'快速'/'临时'修改、'修复bug'/'调试'、'理解'/'查看'代码、'小脚本'/'简单工具'。"
+description: "Use when implementing a new feature, module, or system that needs full development pipeline: design approval, implementation, testing ≥80% coverage, and bug fixing. NOT for simple fixes, debugging, code reading, or quick scripts. 中文触发词：开发新功能/模块/系统、完整开发流程。"
 argument-hint: "<功能描述> [--max-retries=N]"
 allowed-tools: ["Bash", "Read", "Glob", "Grep", "Agent", "AskUserQuestion", "Write"]
 ---
 
 # Dev Flow - 完整开发流水线
 
-主 Agent 协调 + 专业 Agent 执行，完成架构检测→需求分析→设计→实现→测试→修复流程，测试覆盖率≥80%。
-
-目标耗时：10-12 分钟
-
----
-
-## 何时使用
-
-**适用场景**：
-- 需要完整开发流程（设计→实现→测试→修复）
-- 需要测试覆盖率保证（≥80%）
-- 需要多方案设计对比
-
-**不适用**：
-- 简单脚本、临时修改（无测试需求）
-- 修复 bug、调试代码
-- 理解代码、查看文档
+主 Agent 协调 + 专业 Agent 执行。工作流分为**两个独立阶段**，第一阶段（设计）完成并获用户批准后才进入第二阶段（实现）。
 
 ---
 
 ## 工作流程
 
+### 阶段一：设计（design-phase skill）
+
 ```
-Phase 0: 初始化        → 项目检测、初始化 state
-Phase 1: 需求分析      → 解析功能描述、确认需求
-Phase 2: 设计方案      → 多方案对比 → 用户确认
-Phase 3: 代码实现      → Coder Agent 完整实现
-Phase 4: 测试编写      → Tester Agent 编写测试
-Phase 5: 测试执行      → Runner Agent 运行测试
+Phase 0: 初始化        → Architect 扫描项目，输出 arch_snapshot
+Phase 1: 需求分析      → 多轮 AskUserQuestion 澄清需求（含外部文档解析）
+Phase 2: 方案设计      → Architect 生成方案 → 逐节 AskUserQuestion 确认
+                        → 用户批准 design-spec.md → 才能进入阶段二
+```
+
+### 阶段二：实现（dev-flow 继续执行）
+
+```
+Phase 3: 代码实现      → Coder Agent（加载 Rules + 小步实现）
+Phase 4: 测试编写      → Tester Agent（覆盖率 ≥ 80%）
+Phase 5: 测试执行      → Runner Agent 运行 + 编译检查
 Phase 6: 修复循环      → Fixer + Runner 最多5次
-Phase 7: 输出报告      → 完成报告、统计信息
+Phase 7: 输出报告      → 变更影响分析 + 统计
 ```
+
+> 🔒 **阶段门控**：design-spec.md 未经用户批准 → Phase 3 不得启动
 
 ---
 
 ## Agent 体系
 
-| Agent | 调用时机 | 核心职责 |
-|-------|---------|---------|
-| **Architect** | Phase 0, 2 | 项目检测、多方案对比 |
-| **Coder** | Phase 3 | 加载 Rules、完整实现 |
-| **Tester** | Phase 4 | 覆盖主要功能（≥80%） |
-| **Runner** | Phase 5, 6 | 执行测试、返回 JSON 结果 |
-| **Fixer** | Phase 6 | 分析失败原因、增量修复 |
+| Agent | 调用阶段 | 核心职责 |
+|-------|---------|----------|
+| **Architect** | Phase 0, Phase 2 | 扫描 arch_snapshot；读外部文档；设计多方案 |
+| **Coder** | Phase 3 | 加载 Rules（验证读取），小步实现 |
+| **Tester** | Phase 4 | 编写测试，覆盖率 ≥ 80% |
+| **Runner** | Phase 5, 6 | 运行测试 + 编译验证，返回 JSON |
+| **Fixer** | Phase 6 | 根因分析，增量修复 |
+| **Compiler** | Phase 3, 4 | 每次改动后验证编译通过 |
 
 ---
 
@@ -58,72 +53,44 @@ Phase 7: 输出报告      → 完成报告、统计信息
 
 ### 1. 工具使用规范
 
-**写入文件必须使用 Write 工具**：
-```python
-# ✓ 正确
-Write(file_path, content=json_data)
+**写入文件必须使用 Write 工具**（禁止 Bash + cat/echo/heredoc 写文件）。
 
-# ❌ 错误：使用 Bash + cat + heredoc
-Bash(f"cat > {file_path} << 'EOF'\n{json_data}\nEOF")
-```
+**允许例外**：`mkdir -p`、`bash scripts/*.sh`、`./gradlew test`
 
-**禁止行为**：
-- ❌ Bash 命令写入文件内容（cat、echo、printf）
-- ❌ 绕过 Write 工具权限验证
-
-**允许例外**：
-- ✓ `mkdir -p`（创建目录）
-- ✓ `bash scripts/*.sh`（验证脚本）
-- ✓ `./gradlew test`（执行测试）
+详见：`docs/agent-guide.md`
 
 ---
 
 ### 2. 强制验证机制
 
 **每个 Phase 结束后必须验证**：
+
 ```python
-# Phase 输出验证
 Bash(f"bash scripts/validate-phase-output.sh {workflow_id} {phase_number}")
-
-# State 格式验证（Phase 0）
-Bash(f"bash scripts/validate-state-format.sh {workflow_id}")
-
-# 验证失败 → 立即停止工作流
 ```
 
-**验证内容**：
-- ✓ JSON 输出文件是否存在
-- ✓ state 文件 phase_status 格式（数组）
-- ✓ 必需字段完整（phase_number、output_files 等）
-- ✓ JSON 输出内容完整
+验证失败 → 立即停止工作流。详见：`docs/workflow-phases.md`
 
 ---
 
-### 3. Rules 加载原则
+### 3. Rules 加载原则（Token 优化）
 
-**主 Agent 调用 Subagent 时**：
-1. 读取 `phase-0-*.json` 文件（不是 DevFlow.md）
-2. 提取 `rules_info` JSON 对象
-3. 将 `rules_type` 和 `rules_paths` 嵌入 Agent prompt
+Subagent 内部读取 Rules（不累积到主 Agent）→ 节省 91% token。
 
-**Subagent 内部读取 Rules**：
-- Rules token 累积在 Subagent 内（不累积到 Main）
-- Subagent 销毁后，Rules token 也销毁
-
-**Token 优化效果**：节省 91% token
+**主 Agent 必须**：读取 `phase-0-*.json` → 提取 `rules_info` → 嵌入 Subagent prompt。
 
 详见：`docs/agent-guide.md`
 
 ---
 
-### 4. Phase 2 用户确认
+### 4. 设计阶段门控
 
-**设计方案必须用户确认**：
-- Architect Agent 生成多方案对比
-- 主 Agent 使用 AskUserQuestion 提交方案
-- 用户选择后才能继续 Phase 3
+```
+设计规格（design-spec.md）未经用户批准 → Phase 3 不得启动
+```
 
-**禁止跳过确认**：不能代用户决定方案
+- design-phase skill 负责多轮 AskUserQuestion，直到用户明确批准
+- Phase 3 启动前必须验证 `design-spec.md` 存在且 `selected_option` 非空
 
 ---
 

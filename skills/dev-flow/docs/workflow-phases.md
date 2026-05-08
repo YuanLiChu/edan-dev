@@ -75,21 +75,47 @@ Write(f".dev-flow/{workflow_id}/.state.json", content=state)
 **步骤3：目录结构检测**
 ```python
 source_dirs = Glob("src/**/")
-app_dirs = Glob("app/**/")
+qml_dirs    = Glob("qml/**/")
+module_dirs = Glob("**/CMakeLists.txt") # 或者 Glob("**/*.pro")
 ```
 
 **步骤4：语言/框架识别**
 ```python
-imports = Grep("import ", output_mode="content")
-# 识别规则：
-# - "package" + ".kt" 文件 → Kotlin
-# - "import React" → React/TypeScript
+# 语言识别规则：
+# - 存在 *.cpp/*.h/*.qml 文件 → C++ / Qt
+# - 存在 CMakeLists.txt 或 *.pro → C++ Build System
+# 架构模式识别：
+# - Grep "Q_PROPERTY" 或 "QAbstractItemModel" → Qt Model-View
+# - Grep "QObject" → Qt 基于对象的架构
 ```
 
 **步骤5：架构文档检查**
 ```python
-readme = Read("README.md") if FileExists("README.md")
+readme    = Read("README.md")  if FileExists("README.md")
 claude_md = Read("CLAUDE.md") if FileExists("CLAUDE.md")
+```
+
+**步骤5b：⚠️ 组件与依赖扫描（新增，必须执行）**
+
+```python
+# QT/C++ 项目：扫描模块清单 (CMake)
+modules = Bash("grep -r \"add_subdirectory\" CMakeLists.txt 2>/dev/null")
+
+# 扫描主要组件（类/对象级别）
+components = Grep(r"^(class|struct) \w+", include="*.h", output_mode="filename+match")
+# 提取 QML 组件
+qml_components = Grep(r"^[A-Z]\w+\s*\{", include="*.qml", output_mode="filename+match")
+
+# 外部依赖扫描 (CMake)
+external_deps = Bash("grep -E \"find_package|target_link_libraries\" CMakeLists.txt 2>/dev/null | head -30")
+
+# 构建 arch_snapshot
+arch_snapshot = {
+    "modules": [],      # 模块列表，详见输出格式
+    "components": [],   # 关键组件列表 (C++ Models/Controllers, QML Views)
+    "dependencies": {}, # 依赖关系
+    "patterns": []      # 已识别的架构模式
+}
 ```
 
 **步骤6：Rules 路径检测（关键！）**
@@ -97,68 +123,128 @@ claude_md = Read("CLAUDE.md") if FileExists("CLAUDE.md")
 ⚠️ **必须调用 detect_rules.sh 脚本**
 
 ```python
-# 使用 Bash 工具执行脚本
 rules_output = Bash(
     f"bash scripts/detect_rules.sh {PROJECT_DIR}",
     description="检测 Rules 路径"
 )
-
-# 解析脚本输出（格式：KEY=VALUE）
-# 输出示例：
-# RULES_PATH=/path/to/rules
-# RULES_TYPE=PLUGIN_CACHE
-# PLUGIN_VERSION=0.1.2
-
+# 输出: RULES_PATH=... / RULES_TYPE=PLUGIN_CACHE / PLUGIN_VERSION=...
 rules_info = parse_rules_output(rules_output)
 ```
 
 **步骤7：构建系统检测**
 ```bash
-# Android: ./gradlew tasks --all
-# Web: npm --version
-# Python: python --version
+# Qt/C++: cmake --version; qmake -v
 ```
 
 ---
 
 #### 步骤8：保存项目信息（主 Agent）
 
-```python
-project_info_md = """
+Project.md 格式已规范化，必须包含组件和依赖信息：
+
+```markdown
 # 项目架构检测报告
 
 生成时间: {timestamp}
 
-## 项目信息
-- **项目类型**: {project_type}
-- **主要语言**: {language}
-- **Rules 路径**: {rules_path}
-- **Rules 类型**: {rules_type}
+## 基础信息
+| 字段 | 值 |
+|------|----|
+| 项目类型 | Qt Desktop / Embedded / ... |
+| 主要语言 | C++ / QML |
+| 框架 | Qt 5/6 |
+| 构建系统 | CMake / qmake |
+| 测试框架 | GTest / QTest |
+
+## 模块结构
+| 模块名 | 路径 | 职责说明 |
+|--------|------|----------|
+| GUI | src/gui/ | 界面表示层，含 QML 资源 |
+| Core | src/core/ | 业务核心逻辑，C++ Models |
+| ...    | ...  | ... |
+
+## 关键组件
+| 组件名 | 类型 | 所属模块 | 关键职责 |
+|--------|------|---------|----------|
+| PatientModel | QAbstractListModel | Core | 患者列表状态管理 |
+| DatabaseService | Service | Core | 数据库访问与存储 |
+| MainView | QML Item | GUI | 主界面容器 |
+| ...            | ...        | ...  | ... |
+
+## 依赖关系
+```
+[Mermaid graph 展示模块间依赖]
+GUI --> Core
+Core --> Database
+```
+
+## 外部依赖（关键库）
+| 库名 | 版本 | 用途 |
+|------|------|------|
+| QtNetwork | Qt5/6 | 网络通信 |
+| QtSql | Qt5/6 | 数据库支持 |
+| ... | ... | ... |
 
 ## 关键目录
 | 目录类型 | 路径 |
 |---------|------|
-| 源代码 | {source_dir} |
-| 测试代码 | {test_dir} |
+| 源代码 | src/ |
+| QML界面 | qml/ |
+| 测试代码 | tests/ |
 
-## 架构模式分析
-{architecture_summary}
-"""
+## 架构模式
+{已识别模式：Model-View / Controller / MVC / ...}
+```
 
+```python
 Write(".dev-flow/Project.md", content=project_info_md)
 ```
 
 ---
 
-#### 步骤9：输出 Phase 0 文档（主 Agent）
+#### 步骤9：输出 Phase 0 JSON（主 Agent）
+
+**⚠️ 必须包含 arch_snapshot 字段（新增）**，供 design-phase skill 使用：
 
 ```python
-# 构建 Phase 输出
 phase_0_output = {
     "phase_number": 0,
-    "phase_name": "初始化",
+    "phase_name":   "初始化",
     "output": {
-        "project_info": {...},
+        "project_info": {
+            "project_type":  "Qt Desktop/Embedded",
+            "language":       "C++ / QML",
+            "architecture":   "Model-View",
+            "framework":      "Qt 5",
+            "build_system":   "CMake",
+            "test_framework": "GTest",
+            "key_directories": {
+                "source": "src/",
+                "qml":    "qml/",
+                "test":   "tests/",
+                "config": "CMakeLists.txt"
+            }
+        },
+
+        # ⚠️ 新增：架构快照，供 design-phase 使用
+        "arch_snapshot": {
+            "modules": [
+                {"name": "GUI",   "path": "src/gui/",   "role": "UI 入口"},
+                {"name": "Core",  "path": "src/core/",  "role": "业务核心"},
+                {"name": "Data",  "path": "src/data/",  "role": "数据存储层"}
+            ],
+            "components": [
+                {"name": "PatientModel",    "type": "C++ Model",   "module": "Core",  "file": "src/core/PatientModel.h"},
+                {"name": "DatabaseService", "type": "Service",     "module": "Data",  "file": "src/data/DatabaseService.h"},
+                {"name": "PatientView",     "type": "QML Component","module": "GUI",   "file": "qml/PatientView.qml"}
+            ],
+            "dependencies": {
+                "module_graph": "GUI → Core → Data",
+                "external_key": ["Qt5Core", "Qt5Qml", "Qt5Sql"]
+            },
+            "patterns": ["Model-View", "Singleton Services"]
+        },
+
         "rules_info": rules_info  # ⚠️ 必须包含步骤6检测结果
     }
 }
@@ -166,13 +252,15 @@ phase_0_output = {
 Write(f".dev-flow/{workflow_id}/outputs/phase-0-initialization.json",
       content=phase_0_output)
 
-# 更新 state 文件
+# 更新 state
 state["phase_status"].append({
-    "phase_number": 0,
-    "phase_name": "初始化",
-    "status": "completed",
-    "output_files": [f".dev-flow/{workflow_id}/outputs/phase-0-initialization.json"],
-    "execution_notes": f"项目检测完成，缓存使用：{cache_used}"
+    "phase_number":    0,
+    "phase_name":      "初始化",
+    "status":          "completed",
+    "start_time":      start_time,
+    "end_time":        end_time,
+    "output_files":    [f".dev-flow/{workflow_id}/outputs/phase-0-initialization.json"],
+    "execution_notes": f"项目检测完成，缓存使用：{cache_used}，组件数：{len(components)}"
 })
 
 Write(f".dev-flow/{workflow_id}/.state.json", content=state)
@@ -200,156 +288,142 @@ Bash(f"bash scripts/validate-state-format.sh {workflow_id}")
 
 ---
 
-## Phase 1: 需求分析
+## Phase 1 + Phase 2: 需求分析 + 设计方案
 
-### 执行者
-**主 Agent**
+### ⚠️ 重要：Phase 1 和 Phase 2 由独立的 design-phase skill 执行
 
-### 任务
-解析功能描述，确认项目上下文。
+**主 Agent 在此阶段的职责**：
+1. 读取 Phase 0 输出
+2. 调用（或提示用户使用）`edan-dev:design-phase` skill
+3. 等待 design-phase skill 完成并输出 Phase 1 + Phase 2 JSON
+4. 验证输出后进入 Phase 3
 
 ---
 
-### 执行流程
+### 主 Agent 调用 design-phase
 
 ```python
-# 1. 读取 state 文件
-state = Read(f".dev-flow/{workflow_id}/.state.json")
+# 读取 Phase 0 输出
+state       = Read(f".dev-flow/{workflow_id}/.state.json")
+phase_0     = Read(state["phase_status"][0]["output_files"][0])
+project_info  = phase_0["output"]["project_info"]
+arch_snapshot = phase_0["output"]["arch_snapshot"]   # 组件+依赖快照
+rules_info    = phase_0["output"]["rules_info"]
 
-# 2. 读取 Phase 0 输出
-phase_0_file = state["phase_status"][0]["output_files"][0]
-phase_0_output = Read(phase_0_file)
-
-# 3. 提取项目信息和 Rules 信息
-project_info = phase_0_output["output"]["project_info"]
-rules_info = phase_0_output["output"]["rules_info"]
-
-# 4. 解析用户需求
-# 提取：功能目标、预期行为、非功能需求
-
-# 5. 如果需求不明确，使用 AskUserQuestion 澄清
-
-# 6. 输出 Phase 1 文档
-phase_1_output = {
-    "phase_number": 1,
-    "phase_name": "需求分析",
-    "output": {
-        "core_requirements": [...],
-        "non_functional_requirements": {...},
-        "success_criteria": [...]
-    }
-}
-
-Write(f".dev-flow/{workflow_id}/outputs/phase-1-requirement-analysis.json",
-      content=phase_1_output)
-
-# 7. 更新 state 文件
-state["phase_status"].append({...})
-Write(f".dev-flow/{workflow_id}/.state.json", content=state)
-
-# 8. ⚠️ 强制验证
-Bash(f"bash scripts/validate-phase-output.sh {workflow_id} 1")
+# 调用 design-phase skill（可并行进行用户对话）
+# design-phase 内部会执行多轮 AskUserQuestion
+# 完成后输出两个文件：
+#   .dev-flow/{workflow_id}/outputs/phase-1-requirement-analysis.json
+#   .dev-flow/{workflow_id}/outputs/phase-2-design-solutions.json
+#   .dev-flow/{workflow_id}/outputs/design-spec.md
 ```
 
 ---
 
-### 时间预估
-~1 分钟
+### Phase 1 JSON 输出格式（由 design-phase 写入）
 
----
-
-## Phase 2: 设计方案 - 用户确认
-
-### 执行者
-**Architect Agent** + **主 Agent（用户确认）**
-
-### 任务
-生成多方案对比，提交用户确认。
-
----
-
-### 执行流程
-
-#### 步骤1：调用 Architect Agent
-
-```xml
-<invoke name="Agent">
-<parameter name="subagent_type">edan-dev:architect</parameter>
-<parameter name="prompt">
-任务：生成多方案设计
-
-需求分析摘要：[Phase 1输出]
-
-项目上下文：[Phase 0项目信息]
-
-输出格式：
-## 方案 A：[名称]
-### 架构设计
-[Mermaid 架构图]
-
-### 优缺点
-优点：...
-缺点：...
-
----
-
-## 方案对比表
-| 维度 | 方案A | 方案B | 方案C |
-</parameter>
-</invoke>
-```
-
----
-
-#### 步骤2：使用 AskUserQuestion 提交方案（主 Agent）
-
-```python
-options_data = [
-    {
-        "label": "方案A：[描述]",
-        "description": "[优缺点说明]",
-        "preview": "[Mermaid架构图]"
+```json
+{
+  "phase_number": 1,
+  "phase_name":   "需求分析",
+  "output": {
+    "core_requirements": [
+      {"id": "R1", "description": "用户可以通过邮箱密码登录", "priority": "must"},
+      {"id": "R2", "description": "支持记住密码（7天）",       "priority": "should"}
+    ],
+    "non_functional_requirements": {
+      "performance":  "登录响应 < 2s",
+      "offline":      "不需要离线支持",
+      "permissions":  "无特殊权限",
+      "security":     "密码加密传输"
     },
-    # 方案B、C...
-]
-
-AskUserQuestion(
-    questions=[{
-        "question": "请确认设计方案",
-        "header": "设计确认",
-        "options": options_data
-    }]
-)
+    "success_criteria": [
+      "登录成功后跳转到上次访问页面",
+      "连续失败3次锁定账号30秒"
+    ],
+    "external_context": {
+      "source_type": "figma_export",
+      "source_file": "docs/design/login.png",
+      "ui_components": ["LoginView", "EmailInput", "PasswordInput"],
+      "business_rules": ["密码最少8位"],
+      "acceptance_criteria": ["错误提示具体说明原因"]
+    },
+    "clarification_rounds": 3
+  }
+}
 ```
 
 ---
 
-#### 步骤3：保存用户确认（主 Agent）
+### Phase 2 JSON 输出格式（由 design-phase 写入）
+
+```json
+{
+  "phase_number": 2,
+  "phase_name":   "设计方案",
+  "output": {
+    "options": [
+      {
+        "id":          "A",
+        "name":        "C++ Model + QML View",
+        "summary":     "新增 LoginModel C++ 类处理逻辑，暴露属性和 Invokable 方法给 QML",
+        "mermaid":     "graph TD; LoginView.qml --> LoginModel.cpp --> AuthService.cpp",
+        "pros":        ["UI 与逻辑分离", "原生性能良好"],
+        "cons":        ["需增加 QML 与 C++ 间绑定代码"],
+        "complexity":  "低",
+        "affected_components": ["LoginView.qml（新增）", "LoginModel.cpp/h（新增）", "main.qml（修改导航）"]
+      }
+    ],
+    "selected_option": 0,
+    "design_spec_file": ".dev-flow/{workflow_id}/outputs/design-spec.md",
+    "tech_decisions": {
+      "data_storage": "QSettings（记住密码）",
+      "networking":   "QNetworkAccessManager",
+      "di":           "Singleton Service Locator"
+    },
+    "affected_components": [
+      {"component": "LoginView.qml", "operation": "新增", "module": "GUI"},
+      {"component": "LoginModel",    "operation": "新增", "module": "Core"},
+      {"component": "main.qml",      "operation": "修改", "module": "GUI", "change": "新增登录路由"}
+    ],
+    "test_strategy": {
+      "type":       "GTest (逻辑) + Qt UI 测试",
+      "coverage":   80,
+      "key_cases":  ["登录成功", "密码错误", "网络超时", "账号锁定"]
+    },
+    "impact_analysis": {
+      "direct":   ["LoginView.qml", "LoginModel", "AuthService"],
+      "indirect": ["main.qml（导航）", "UserContext（状态）"],
+      "risks":    ["Navigation 路由层级变更可能影响返回键行为"]
+    }
+  }
+}
+```
+
+---
+
+### 进入 Phase 3 前的验证（主 Agent）
 
 ```python
-phase_2_output = {
-    "phase_number": 2,
-    "output": {
-        "options": [...],
-        "selected_option": selected_option
-    }
-}
-
-Write(f".dev-flow/{workflow_id}/outputs/phase-2-design-solutions.json",
-      content=phase_2_output)
-
-state["design"]["selected_option"] = selected_option
-state["phase_status"].append({...})
-Write(f".dev-flow/{workflow_id}/.state.json", content=state)
-
-# ⚠️ 强制验证
+# ⚠️ 强制验证两个 Phase 的输出
+Bash(f"bash scripts/validate-phase-output.sh {workflow_id} 1")
 Bash(f"bash scripts/validate-phase-output.sh {workflow_id} 2")
+
+# 确认 design-spec.md 存在
+spec_file = f".dev-flow/{workflow_id}/outputs/design-spec.md"
+assert FileExists(spec_file), "设计规格文档必须存在才能进入 Phase 3"
+
+# 确认 selected_option 已设置
+phase_2 = Read(f".dev-flow/{workflow_id}/outputs/phase-2-design-solutions.json")
+assert phase_2["output"]["selected_option"] is not None, "必须有用户确认的方案"
 ```
 
 ---
 
 ### 时间预估
-~3 分钟（Architect 1 分钟 + 用户确认 2 分钟）
+- **Phase 1（需求澄清）**：5-8 分钟（含多轮用户交互）
+- **Phase 2（方案设计+确认）**：8-12 分钟（含 Architect + 多轮确认）
+- **合计**：13-20 分钟
 
 ---
 

@@ -1,11 +1,58 @@
 #!/bin/bash
 set -e
 
+# 参数解析
 WORKFLOW_ID=$1
 PHASE_NUMBER=$2
+PROJECT_DIR=${3:-.}  # 默认当前目录
+
+# 使用说明
+if [ -z "$WORKFLOW_ID" ] || [ -z "$PHASE_NUMBER" ]; then
+    echo "使用方法: bash validate-phase-output.sh <workflow_id> <phase_number> [project_dir]"
+    echo ""
+    echo "参数:"
+    echo "  workflow_id  - 工作流ID（格式: YYYY-MM-DD-HH-MM-SS）"
+    echo "  phase_number - Phase编号（0-7）"
+    echo "  project_dir  - 项目根目录路径（可选，默认当前目录）"
+    echo ""
+    echo "示例:"
+    echo "  bash scripts/validate-phase-output.sh 2026-04-16-10-34-02 0"
+    echo "  bash scripts/validate-phase-output.sh 2026-04-16-10-34-02 2 /path/to/project"
+    exit 1
+fi
+
+# 切换到项目目录（如果指定）
+if [ "$PROJECT_DIR" != "." ]; then
+    cd "$PROJECT_DIR" || {
+        echo "❌ ERROR: 无法切换到项目目录: $PROJECT_DIR"
+        exit 1
+    }
+fi
+
 WORKFLOW_DIR=".dev-flow/${WORKFLOW_ID}"
 
 echo "=== 验证 Phase ${PHASE_NUMBER} 输出完整性 ==="
+echo "项目目录: $(pwd)"
+echo "工作流ID: ${WORKFLOW_ID}"
+echo "Phase编号: ${PHASE_NUMBER}"
+echo ""
+
+# 检查 0：项目目录是否包含 .dev-flow 目录
+if [ ! -d ".dev-flow" ]; then
+    echo "❌ ERROR: 当前目录不是有效的项目根目录"
+    echo "   缺少 .dev-flow 目录"
+    echo ""
+    echo "   请确保在包含 .dev-flow 的项目根目录下执行此脚本"
+    echo "   或通过第三个参数指定项目目录路径"
+    echo ""
+    echo "   正确调用方式:"
+    echo "   cd /path/to/your/project"
+    echo "   bash /path/to/edan-dev/skills/dev-flow/scripts/validate-phase-output.sh ${WORKFLOW_ID} ${PHASE_NUMBER}"
+    echo ""
+    echo "   或者:"
+    echo "   bash scripts/validate-phase-output.sh ${WORKFLOW_ID} ${PHASE_NUMBER} /path/to/your/project"
+    exit 1
+fi
 
 # 检查 1：JSON 输出文件是否存在
 PHASE_OUTPUT=$(find "${WORKFLOW_DIR}/outputs" -name "phase-${PHASE_NUMBER}-*.json" 2>/dev/null | head -1)
