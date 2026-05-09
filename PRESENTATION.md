@@ -59,7 +59,7 @@ edan-dev 方案设计 Skill 是一套让 AI 在进入设计前，先自动建立
     |-- 模块边界（什么归我管、什么不归我管）
     |-- 与其他子系统的交互矩阵
     |
-    L3: 功能规格 (test/{feature}/design-spec.md)
+    L3: 功能规格 (docs/{feature}/design-spec.md)
     |-- 具体功能的实现方案
     |-- Mermaid 架构图、接口定义
     |-- TDD 测试用例
