@@ -69,14 +69,49 @@ project_info  = phase_0["output"]["project_info"]
 arch_snapshot = phase_0["output"]["arch_snapshot"]   # 组件 + 依赖关系图
 rules_info    = phase_0["output"]["rules_info"]
 
-# 2. 合并 design-context 输出（project.md 摘要）
+# 2. 合并 design-context 输出（project.md 摘要 + 子系统索引）
 if project_md_info and project_md_info.get("exists"):
     project_summary = project_md_info.get("summary", "")
     # 将 project.md 摘要纳入需求分析上下文
 
+    # 2a. 解析子系统索引，定位相关子系统文档
+    subsystems = project_md_info.get("subsystems", [])
+    current_feature = extract_feature_name(user_request)  # 从用户请求提取功能名
+    related_subsystems = find_related_subsystems(subsystems, current_feature)
+
+    # 2b. 读取相关子系统文档（L2 设计文档）
+    subsystem_contexts = []
+    for subsys in related_subsystems:
+        doc_path = subsys.get("doc")
+        if file_exists(doc_path):
+            doc_content = Read(doc_path)
+            # 提取关键信息：业务流程、数据模型、模块边界、与其他子系统交互
+            subsystem_contexts.append({
+                "name": subsys["name"],
+                "doc_path": doc_path,
+                "business_flows": extract_business_flows(doc_content),
+                "data_models": extract_data_models(doc_content),
+                "module_boundaries": extract_module_boundaries(doc_content),
+                "interactions": extract_interactions(doc_content)
+            })
+
+    # 2c. 检查是否需要读取 L3 已有功能规格（如果存在）
+    l3_specs = []
+    feature_dir = f"test/{current_feature}/"
+    if is_dir(feature_dir):
+        spec_file = f"{feature_dir}/design-spec.md"
+        if file_exists(spec_file):
+            l3_specs.append(Read(spec_file))
+
 # 3. 扫描用户提供的外部文档（详见 Step 3 和 docs/external-context-guide.md）
 # 包括外挂文件夹中的文档 + 用户显式提供的路径
 ```
+
+> 📚 **子系统文档读取策略**：
+> - 若 `project.md` 包含子系统索引，优先读取相关子系统的 `docs/{subsystem}.md`
+> - 子系统文档提供业务上下文，避免 AI 凭空设计
+> - 读取后提取：业务流程、数据模型、模块边界、与其他子系统交互
+> - 这些上下文将注入 Architect Agent 的 prompt 中，确保方案与子系统架构一致
 
 ---
 
@@ -171,6 +206,19 @@ if auto_discovered:
 
 ```python
 # 调用 Architect Agent，传入完整上下文
+# 构建子系统上下文摘要（从 Step 1 读取的 docs/{subsystem}.md 中提取）
+subsystem_context_summary = ""
+if subsystem_contexts:
+    subsystem_context_summary = "\n\n相关子系统业务上下文（来自 L2 设计文档）：\n"
+    for ctx in subsystem_contexts:
+        subsystem_context_summary += f"""
+【{ctx['name']}】(来自 {ctx['doc_path']})
+- 核心业务流程：{ctx['business_flows']}
+- 数据模型：{ctx['data_models']}
+- 模块边界：{ctx['module_boundaries']}
+- 与其他子系统交互：{ctx['interactions']}
+"""
+
 architect_output = Agent(
     subagent_type="edan-dev:architect",
     prompt=f"""
@@ -182,8 +230,13 @@ architect_output = Agent(
 项目架构快照：
 {json.dumps(arch_snapshot, ensure_ascii=False)}
 
+{subsystem_context_summary}
+
 外部文档提取（如有）：
 {json.dumps(external_context, ensure_ascii=False)}
+
+已有功能规格（如有，来自 L3）：
+{chr(10).join(l3_specs) if l3_specs else "无"}
 
 输出要求：
 1. 每个方案必须包含：
@@ -197,6 +250,11 @@ architect_output = Agent(
 2. 方案对比表（维度：实现复杂度/可测试性/对现有代码影响/性能）
 
 3. 架构师推荐方案及理由
+
+重要约束：
+- 方案必须与相关子系统的现有业务流程兼容
+- 不得破坏子系统文档中定义的模块边界
+- 接口设计需符合子系统间已定义的交互协议
 """
 )
 

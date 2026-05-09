@@ -56,15 +56,23 @@ for candidate in candidates:
 
 ### 情况 A: project.md 存在
 
-**读取并摘要展示**：
+**读取并解析**：
 
 ```python
 content = Read(project_md_path)
 
-# 输出摘要给用户
+# 1. 提取项目总览摘要
 summary = extract_summary(content)
 # 提取：项目目标、技术栈、核心架构、关键模块
 # 长度：不超过 20 行，便于快速浏览
+
+# 2. 解析子系统索引（关键）
+subsystems = extract_subsystems(content)
+# 提取表格：子系统名 / 文档路径 / 核心职责 / 包含功能 / 状态
+
+# 3. 解析设计文档规范
+doc_hierarchy = extract_doc_hierarchy(content)
+# 提取 L1/L2/L3 文档分层规范
 ```
 
 **展示格式**：
@@ -75,6 +83,16 @@ summary = extract_summary(content)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {summary}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📑 子系统索引（共 {N} 个）：
+  • [子系统A] → docs/subsystem-a.md ([状态])
+  • [子系统B] → docs/subsystem-b.md ([状态])
+  ...
+
+📂 文档分层规范：
+  L1: docs/project.md（系统总览）
+  L2: docs/{subsystem}.md（子系统业务流程）
+  L3: test/{feature}/design-spec.md（功能规格）
 ```
 
 ### 情况 B: project.md 不存在
@@ -267,7 +285,16 @@ mkdir -p attachments/requirements attachments/ui attachments/api attachments/fig
     "project_md": {
       "exists": true,
       "path": "project.md",
-      "summary": "项目概述摘要..."
+      "summary": "项目概述摘要...",
+      "subsystems": [
+        {"name": "报警系统", "doc": "docs/alarm.md", "status": "设计中"},
+        {"name": "网络通信", "doc": "docs/network.md", "status": "已上线"}
+      ],
+      "doc_hierarchy": {
+        "l1": "docs/project.md",
+        "l2": "docs/{subsystem}.md",
+        "l3": "test/{feature}/design-spec.md"
+      }
     },
     "attachments": {
       "exists": true,
@@ -299,8 +326,19 @@ design_context = Agent(
 )
 
 # 将结果注入 Step 1
-project_info = design_context["project_md"]
+project_info = design_context["project_md"]           # 包含 summary + subsystems + doc_hierarchy
 external_files = design_context["attachments"]["files"]
+
+# 根据当前设计的功能，定位相关子系统
+current_feature = "alarm-limit-suggest"  # 从用户需求中提取
+related_subsystems = find_related_subsystems(project_info["subsystems"], current_feature)
+# 示例：返回 [{"name": "报警系统", "doc": "docs/alarm.md"}, ...]
+
+# 读取相关子系统文档，获取业务上下文
+for subsys in related_subsystems:
+    subsys_doc = Read(subsys["doc"])
+    # 提取：业务流程、数据模型、模块边界、与其他子系统交互
+    # 注入到 design-phase 的上下文中
 ```
 
 ### dev-flow 调用方式
