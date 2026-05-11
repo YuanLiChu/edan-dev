@@ -39,13 +39,14 @@
 │   ├── core/         # 业务核心 (Models + Services)
 │   └── data/         # 数据层 (Repository + Database)
 ├── tests/            # 测试代码
-├── docs/             # 设计文档
-│   ├── project.md    # 系统总览 + 子系统索引（本文档）
-│   ├── alarm.md      # 报警子系统设计
-│   └── ...           # 其他子系统文档
-└── test/             # 功能级设计规格
-    └── {feature}/
-        └── design-spec.md
+├── docs/                      # 设计文档
+│   ├── project.md             # 系统总览 + 子系统索引（本文档）
+│   ├── alarm/                 # 报警子系统
+│   │   ├── alarm.md           # 子系统设计框架
+│   │   ├── alarm-rule/        # 业务流程：报警规则
+│   │   │   └── design-spec.md
+│   │   └── ...                # 其他业务流程
+│   └── ...                    # 其他子系统
 ```
 
 ---
@@ -58,8 +59,8 @@
 
 | 子系统 | 文档路径 | 核心职责 | 包含的主要功能 | 状态 |
 |--------|---------|---------|--------------|------|
-| [子系统A] | `docs/[subsystem-a].md` | [职责描述] | [功能1, 功能2] | [设计中/已上线] |
-| [子系统B] | `docs/[subsystem-b].md` | [职责描述] | [功能3, 功能4] | [设计中/已上线] |
+| [子系统A] | `docs/[subsystem-a]/[subsystem-a].md` | [职责描述] | [功能1, 功能2] | [设计中/已上线] |
+| [子系统B] | `docs/[subsystem-b]/[subsystem-b].md` | [职责描述] | [功能3, 功能4] | [设计中/已上线] |
 | ... | ... | ... | ... | ... |
 
 ### 子系统间依赖关系
@@ -74,8 +75,9 @@ graph TD
 > **读取顺序**：当设计某个功能时，先读取涉及的主子系统文档，再读取其依赖的子系统文档。
 >
 > 例如：设计"[功能X]"时，读取顺序为：
-> 1. `docs/[主系统].md`（主系统）
-> 2. `docs/[依赖系统].md`（依赖系统）
+> 1. `docs/[主系统]/[主系统].md`（主系统）
+> 2. `docs/[依赖系统]/[依赖系统].md`（依赖系统）
+> 3. `docs/[主系统]/[功能X]/design-spec.md`（功能规格）
 
 ---
 
@@ -86,15 +88,16 @@ graph TD
 | 层级 | 路径 | 内容 | 更新时机 |
 |------|------|------|---------|
 | **L1: 系统总览** | `docs/project.md` | 子系统索引、技术栈、全局架构 | 新增子系统时 |
-| **L2: 子系统文档** | `docs/{subsystem}.md` | 业务流程、模块边界、数据模型、交互协议 | 业务流程变更时 |
-| **L3: 功能规格** | `test/{feature}/design-spec.md` | 具体功能的实现方案、接口定义、测试用例 | 功能开发前 |
+| **L2: 子系统设计** | `docs/{subsystem}/{subsystem}.md` | 业务流程索引、模块边界、数据模型、交互协议 | 业务流程变更时 |
+| **L3: 功能规格** | `docs/{subsystem}/{flow}/design-spec.md` | 具体功能的实现方案、接口定义、测试用例 | 功能开发前 |
 
 ### 命名约定
 
-- 子系统文档：`docs/{subsystem-name}.md`（小写，kebab-case）
-- 功能目录：`test/{feature-name}/`（小写，kebab-case）
-- 功能规格：`test/{feature}/design-spec.md`
-- 附件目录：`test/{feature}/attachments/{requirements|ui|api}/`
+- 子系统文件夹：`docs/{subsystem-name}/`（小写，kebab-case）
+- 子系统文档：`docs/{subsystem}/{subsystem}.md`
+- 业务流程文件夹：`docs/{subsystem}/{flow-name}/`（小写，kebab-case）
+- 功能规格：`docs/{subsystem}/{flow}/design-spec.md`
+- 附件目录：`docs/{subsystem}/{flow}/attachments/{requirements|ui|api}/`
 
 ---
 
@@ -130,9 +133,9 @@ graph TD
 >
 > **AI 读取指南**：
 > 1. 首先阅读本文档，了解系统全貌和子系统索引
-> 2. 根据当前设计的功能，定位到相关子系统文档（L2）
-> 3. 读取子系统文档，掌握业务流程和模块边界
-> 4. 进入具体功能设计时，参考 L3 功能规格模板
-> 5. 设计完成后，更新相关子系统文档（如有业务流程变更）
+> 2. 根据当前设计的功能，定位到相关子系统文件夹和子系统设计文档（L2）
+> 3. 读取子系统文档，掌握业务流程索引、模块边界和数据模型
+> 4. 进入具体功能设计时，定位到 `docs/{subsystem}/{flow}/design-spec.md`（L3）
+> 5. 设计完成后，更新相关子系统文档（如有新增业务流程，需更新索引）
 >
 > 生成时间: [自动生成]

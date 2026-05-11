@@ -85,14 +85,14 @@ doc_hierarchy = extract_doc_hierarchy(content)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📑 子系统索引（共 {N} 个）：
-  • [子系统A] → docs/subsystem-a.md ([状态])
-  • [子系统B] → docs/subsystem-b.md ([状态])
+  • [子系统A] → docs/subsystem-a/subsystem-a.md ([状态])
+  • [子系统B] → docs/subsystem-b/subsystem-b.md ([状态])
   ...
 
 📂 文档分层规范：
   L1: docs/project.md（系统总览）
-  L2: docs/{subsystem}.md（子系统业务流程）
-  L3: test/{feature}/design-spec.md（功能规格）
+  L2: docs/{subsystem}/{subsystem}.md（子系统整体设计框架）
+  L3: docs/{subsystem}/{flow}/design-spec.md（业务流程功能规格）
 ```
 
 ### 情况 B: project.md 不存在
@@ -287,13 +287,13 @@ mkdir -p attachments/requirements attachments/ui attachments/api attachments/fig
       "path": "project.md",
       "summary": "项目概述摘要...",
       "subsystems": [
-        {"name": "报警系统", "doc": "docs/alarm.md", "status": "设计中"},
-        {"name": "网络通信", "doc": "docs/network.md", "status": "已上线"}
+        {"name": "报警系统", "doc": "docs/alarm/alarm.md", "status": "设计中"},
+        {"name": "网络通信", "doc": "docs/network/network.md", "status": "已上线"}
       ],
       "doc_hierarchy": {
         "l1": "docs/project.md",
-        "l2": "docs/{subsystem}.md",
-        "l3": "test/{feature}/design-spec.md"
+        "l2": "docs/{subsystem}/{subsystem}.md",
+        "l3": "docs/{subsystem}/{flow}/design-spec.md"
       }
     },
     "attachments": {
@@ -332,12 +332,13 @@ external_files = design_context["attachments"]["files"]
 # 根据当前设计的功能，定位相关子系统
 current_feature = "alarm-limit-suggest"  # 从用户需求中提取
 related_subsystems = find_related_subsystems(project_info["subsystems"], current_feature)
-# 示例：返回 [{"name": "报警系统", "doc": "docs/alarm.md"}, ...]
+# 示例：返回 [{"name": "报警系统", "doc": "docs/alarm/alarm.md"}, ...]
 
 # 读取相关子系统文档，获取业务上下文
 for subsys in related_subsystems:
     subsys_doc = Read(subsys["doc"])
-    # 提取：业务流程、数据模型、模块边界、与其他子系统交互
+    # 提取：业务流程索引、数据模型、模块边界、与其他子系统交互
+    # 若涉及具体业务流程，再定位并读取 docs/{subsystem}/{flow}/design-spec.md
     # 注入到 design-phase 的上下文中
 ```
 
